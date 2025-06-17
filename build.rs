@@ -77,6 +77,18 @@ struct Conf {
     flint_lib_dir: PathBuf,    // $OUT_DIR/lib, idem
 }
 
+fn build_cflags() -> String {
+    if cfg!(feature = "custom-cflags") {
+        std::env::var("CFLAGS").unwrap_or_else(|_| "".into())
+    } else if cfg!(target_os = "macos") {
+        "-O3 -march=native -mtune=native -fPIC".into()
+    } else if cfg!(target_os = "linux") {
+        "-O3 -march=native -mtune=native -flto".into()
+    } else {
+        "".into()
+    }
+}
+
 impl Conf {
     fn new() -> Self {
         // OUT_DIR is where cargo asks us to put the build artifacts
@@ -107,7 +119,7 @@ impl Conf {
             .arg("flint")
             .arg(&self.out_dir);
 
-        cmd! { cp }             // lauch the command
+        cmd! { cp } // lauch the command
 
         // We now follow the instructions in flint/INSTALL.md
 
@@ -127,6 +139,7 @@ impl Conf {
 
             configure
                 .current_dir(&flint_root_dir)
+                .env("CFLAGS", build_cflags())
                 .arg("./configure")
                 .arg("--prefix") // ask that the files are install in OUT_DIR, not `/usr`
                 .arg(&self.out_dir)
@@ -182,8 +195,10 @@ impl Conf {
         cc::Build::new()
             .file(&self.bindgen_extern_c)
             .include(&self.flint_include_dir)
+            .include(std::env::var("DEP_GMP_INCLUDE_DIR").unwrap())
             .flags(["-lflint", "-lmpr", "-lgmp"])
-            .flags([            // remove compilation warnings, we cannot do much about them.
+            .flags([
+                // remove compilation warnings, we cannot do much about them.
                 "-Wno-old-style-declaration",
                 "-Wno-unused-parameter",
                 "-Wno-sign-compare",
@@ -209,7 +224,7 @@ impl Conf {
             &self.bindgen_extern_c.display()
         );
         let mut cp = Command::new("cp");
-        cp.arg("--archive")     // avoids trigerring build.rs for no reason
+        cp.arg("--archive") // avoids trigerring build.rs for no reason
             .arg("./bindgen/flint.rs")
             .arg(&self.bindgen_flint_rs);
         cmd! { cp };
@@ -300,6 +315,10 @@ impl Conf {
         std::fs::write(&extern_tmp, b"")?;
 
         let bindings = builder
+            .clang_arg(format!(
+                "-I{}",
+                std::env::var("DEP_GMP_INCLUDE_DIR").unwrap()
+            ))
             // .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
             // useful to echo some cargo:force, but disabled because it triggers
             // too many recompilations.
@@ -330,7 +349,8 @@ impl Conf {
             // This the file where we write the modified code.
             // The file handle will be closed at the end of the scope.
             let mut extern_rel = std::io::BufWriter::new(
-                std::fs::File::create(&self.bindgen_extern_c).context("Cannot open `flintextern.c`")?,
+                std::fs::File::create(&self.bindgen_extern_c)
+                    .context("Cannot open `flintextern.c`")?,
             );
 
             // This is the file where bindgen outputs the inline functions.
@@ -432,7 +452,10 @@ fn main() -> Result<()> {
     // from the directory `./bindgen`.
     conf.bindgen()?;
 
-    anyhow::ensure!(conf.bindgen_extern_c.is_file(), "Cannot find `flintextern.c`");
+    anyhow::ensure!(
+        conf.bindgen_extern_c.is_file(),
+        "Cannot find `flintextern.c`"
+    );
     anyhow::ensure!(conf.bindgen_flint_rs.is_file(), "Cannot find `flint.rs`");
 
     ////////////////////////////////
