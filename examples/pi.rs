@@ -12,7 +12,7 @@ fn main() {
     unsafe {
         let mut pi: arb_struct = mem::MaybeUninit::uninit().assume_init();
 
-        flint_set_num_threads(16);
+        // flint_set_num_threads(16);
 
         arb_init(&mut pi);
 
