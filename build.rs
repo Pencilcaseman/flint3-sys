@@ -195,7 +195,8 @@ impl Conf {
         cc::Build::new()
             .file(&self.bindgen_extern_c)
             .include(&self.flint_include_dir)
-            .include(std::env::var("DEP_GMP_INCLUDE_DIR").unwrap())
+            // .include(std::env::var("DEP_GMP_INCLUDE_DIR").unwrap())
+            .include(std::env::var("DEP_GMP_INCLUDE_DIR").unwrap_or("".into()))
             .flags(["-lflint", "-lmpr", "-lgmp"])
             .flags([
                 // remove compilation warnings, we cannot do much about them.
