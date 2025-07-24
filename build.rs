@@ -83,6 +83,7 @@ fn build_cflags() -> String {
     } else if cfg!(target_os = "macos") {
         "-O3 -march=native -mtune=native -fPIC".into()
     } else if cfg!(target_os = "linux") {
+        // TODO: Different set of flags here?
         "-O3 -march=native -mtune=native -fPIC".into()
     } else {
         "".into()
